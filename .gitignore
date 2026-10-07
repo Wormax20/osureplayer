@@ -1,0 +1,10 @@
+/.vs/
+/osureplayer/
+/build/
+/out/
+/x64/
+/Win32/
+/Debug/
+/Release/
+*.user
+*.pdb

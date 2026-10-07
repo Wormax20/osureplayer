@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="osureplayer.vcxproj" Id="5c136db1-0105-4d71-a0c5-932a00c035cb" />
+</Solution>
