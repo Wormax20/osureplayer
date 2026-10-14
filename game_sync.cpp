@@ -60,16 +60,12 @@ SyncAction AutoSync::update(const GameState& state, double wall_ms) {
         last_change_ms_ = wall_ms;
         return SyncAction::start;
     }
-    if (state.time_ms > old->time_ms + 250) {
-        stalled_ = pending_start_ = false;
-        last_change_ms_ = wall_ms;
-        return SyncAction::seek;
-    }
     if (state.time_ms > old->time_ms) {
-        bool resume = stalled_ || wall_ms - last_change_ms_ > 50;
+        bool seek = state.time_ms - old->time_ms >
+            (wall_ms - last_change_ms_) * playback_rate(state.mods) + 250;
         stalled_ = false;
         last_change_ms_ = wall_ms;
-        return resume ? SyncAction::seek : SyncAction::advance;
+        return seek ? SyncAction::seek : SyncAction::advance;
     }
     if (!stalled_ && wall_ms - last_change_ms_ >= 100) {
         stalled_ = true;

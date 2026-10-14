@@ -27,14 +27,25 @@ bool stopped() { return interrupted.load() || pressed(VK_F8) || pressed(VK_ESCAP
 
 struct Runtime {
     bool timer = false;
+    HANDLE poll_timer = nullptr;
     Runtime() {
         interrupted.store(false);
         if (!SetConsoleCtrlHandler(console_handler, TRUE)) throw std::runtime_error("Cannot install stop handler");
         timer = timeBeginPeriod(1) == TIMERR_NOERROR;
+        poll_timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+            TIMER_MODIFY_STATE | SYNCHRONIZE);
     }
     ~Runtime() {
+        if (poll_timer) CloseHandle(poll_timer);
         if (timer) timeEndPeriod(1);
         SetConsoleCtrlHandler(console_handler, FALSE);
+    }
+    void wait(bool active) const {
+        LARGE_INTEGER due;
+        due.QuadPart = -5000;
+        if (active && poll_timer && SetWaitableTimerEx(poll_timer, &due, 0, nullptr, nullptr, nullptr, 0) &&
+            WaitForSingleObject(poll_timer, 100) == WAIT_OBJECT_0) return;
+        Sleep(1);
     }
 };
 
@@ -132,7 +143,7 @@ Rect screen_playfield(HWND target, const PlayOptions& options, Rect& client) {
     return field;
 }
 
-void play_automatic(const Replay& replay, const Schedule& schedule, const PlayOptions& options) {
+void play_automatic(const Replay& replay, const Schedule& schedule, const PlayOptions& options, const Runtime& runtime) {
     StableMemory memory;
     AutoSync sync(replay.beatmap_hash, schedule.mods);
     std::cout << "Ready. Start/retry song; F8 / Esc stops.\n" << std::flush;
@@ -169,7 +180,7 @@ void play_automatic(const Replay& replay, const Schedule& schedule, const PlayOp
                 return;
             }
         }
-        if (action == SyncAction::wait || action == SyncAction::release) { Sleep(1); continue; }
+        if (action == SyncAction::wait || action == SyncAction::release) { runtime.wait(sync.active()); continue; }
         if (action == SyncAction::start) {
             target = GetForegroundWindow();
             DWORD pid = 0;
@@ -206,7 +217,7 @@ void play_automatic(const Replay& replay, const Schedule& schedule, const PlayOp
             auto frame = interpolate(schedule.frames[next - 1], schedule.frames[next], song_time);
             input.send(map_position(field, frame.x, frame.y), frame.keys, client);
         }
-        Sleep(1);
+        runtime.wait(true);
     }
     if (!input.release()) throw std::runtime_error("Input cleanup failed");
     std::cout << "Stopped.\n";
@@ -219,6 +230,6 @@ void play_windows(const Replay& replay, const Schedule& schedule, const PlayOpti
         !AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
         throw std::runtime_error("Cannot enable per-monitor DPI awareness");
     Runtime runtime;
-    play_automatic(replay, schedule, options);
+    play_automatic(replay, schedule, options, runtime);
 }
 }  
